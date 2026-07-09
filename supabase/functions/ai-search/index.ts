@@ -1,98 +1,112 @@
-// @ts-nocheck
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-serve(async (req: Request) => {
+// @ts-ignore
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const { query, targetLang } = await req.json()
+    const { searchQuery, profile, direction, lang } = await req.json()
 
-    if (!query || !targetLang) {
-      return new Response(JSON.stringify({ error: 'Запрос и язык обязательны' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    // @ts-ignore
+    const agentsApiKey = Deno.env.get('AGENTS_API_KEY')
+    // @ts-ignore
+    const serperKey = Deno.env.get('SERPER_API_KEY')
+
+    if (!agentsApiKey || !serperKey) {
+      throw new Error("Missing API keys (AGENTS_API_KEY or SERPER_API_KEY) in Supabase.");
     }
 
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    // 1. Поиск текстовой информации через Serper API
+    const searchResponse = await fetch('https://google.serper.dev/search', {
+      method: 'POST',
+      headers: { 'X-API-KEY': serperKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: searchQuery, gl: 'uz', hl: lang || 'uz' }),
+    })
+    const searchData = await searchResponse.json()
+    
+    const sourceLinks = searchData.organic?.map((item: any) => item.link).slice(0, 5) || []
+    const webContext = searchData.organic?.map((item: any) => `${item.title}: ${item.snippet}`).join('\n') || ""
+
+    // 2. Поиск видео через Serper YouTube Endpoint
+    const ytSearchResponse = await fetch('https://google.serper.dev/videos', {
+      method: 'POST',
+      headers: { 'X-API-KEY': serperKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: searchQuery, gl: 'uz', hl: lang || 'uz' }),
+    })
+    const ytSearchData = await ytSearchResponse.json()
+    const youtubeVideos = ytSearchData.videos?.map((video: any) => ({
+      title: video.title,
+      url: video.link,
+      imageUrl: video.imageUrl
+    })).slice(0, 3) || []
+
+    // Формируем системные инструкции в зависимости от языка
+    let systemPrompt = "You are an expert AI assistant. Answer the user's question clearly based on the provided search context.";
+    if (lang === 'ru') {
+      systemPrompt = `Ты эксперт-наставник. Отвечай строго на русском языке. Дай развернутый полезный ответ на вопрос пользователя. 
+      Учитывай категорию профиля: ${profile || 'Общая'} и направление знаний: ${direction || 'Общее'}. 
+      Используй следующий контекст из веб-поиска для точности:\n${webContext}`;
+    } else if (lang === 'kk') {
+      systemPrompt = `Сіз сарапшы көмекшісіз. Пайдаланушы сұрағына тек қазақ тілінде жауап беріңіз.
+      Профиль санатын: ${profile || 'Жалпы'} және бағытты ескеріңіз: ${direction || 'Жалпы'}.
+      Дәлдік үшін келесі веб-іздеу мәтінмәнін пайдаланыңыз:\n${webContext}`;
+    } else {
+      systemPrompt = `Siz ekspert yordamchisiz. Foydalanuvchi savoliga faqat o'zbek tilida javob bering.
+      Foydalanuvchi profili: ${profile || 'Umumiy'}, Yo'nalish: ${direction || 'Umumiy'}.
+      Aniq ma'lumot berish uchun ushbu qidiruv natijalaridan foydalaning:\n${webContext}`;
+    }
+
+    // 3. Запрос к ИИ через независимый OpenAI-совместимый эндпоинт (Hermes 3)
+    const providerUrl = 'https://api.groq.com/openai/v1/chat/completions'; 
+    
+    const aiResponse = await fetch(providerUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${agentsApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'hf:NousResearch/Hermes-3-Llama-3.1-8B', // Наш целевой агент Hermes 3
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: searchQuery }
+        ],
+        max_tokens: 800,
+        temperature: 0.6,
+      }),
+    });
+
+    if (!aiResponse.ok) {
+      const errText = await aiResponse.text();
+      throw new Error(`AI Provider Error: ${aiResponse.status} - ${errText}`);
+    }
+
+    const aiData = await aiResponse.json()
+    const aiGeneratedText = aiData.choices?.[0]?.message?.content || "Error extracting response from Hermes.";
+
+    // 4. Возвращаем результат на фронтенд
+    return new Response(
+      JSON.stringify({ aiGeneratedText, sourceLinks, youtubeVideos }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200 
+      }
     )
 
-    // 1. Ищем в кэше
-    const { data: cachedData } = await supabaseAdmin
-      .from('search_cache')
-      .select('*')
-      .eq('query_text', query.toLowerCase().trim())
-      .eq('language', targetLang)
-
-    if (cachedData && cachedData.length > 0) {
-      return new Response(JSON.stringify({ results: cachedData, cached: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    // 2. Поиск видео через YouTube API напрямую
-    const youtubeKey = Deno.env.get('YOUTUBE_API_KEY')
-    let videoResults = []
-
-    if (youtubeKey) {
-      try {
-        const ytUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&maxResults=3&type=video&key=${youtubeKey}`
-        const ytRes = await fetch(ytUrl)
-        const ytData = await ytRes.json()
-
-        videoResults = (ytData.items || []).map((item: any) => ({
-          query_text: query.toLowerCase().trim(),
-          content_type: 'videos',
-          language: targetLang,
-          title: item.snippet.title,
-          description: item.snippet.description,
-          source_url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
-          preview_url: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url || ''
-        }))
-      } catch (e) {
-        console.error('Ошибка поиска YouTube:', e)
-      }
-    }
-
-    // Временная заглушка для статей, пока не подключишь Serper API
-    const textResults = [
-      {
-        query_text: query.toLowerCase().trim(),
-        content_type: 'articles',
-        language: targetLang,
-        title: `Рекомендации по вашему запросу (${targetLang.toUpperCase()})`,
-        description: `ИИ обработал ваш запрос: "${query}". В данный момент идет наполнение базы статей по этой теме.`,
-        source_url: 'https://google.com',
-        preview_url: null
-      }
-    ]
-
-    const allResults = [...textResults, ...videoResults]
-
-    // 3. Запись в кэш
-    if (allResults.length > 0) {
-      await supabaseAdmin.from('search_cache').insert(allResults)
-    }
-
-    return new Response(JSON.stringify({ results: allResults, cached: false }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
-
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return new Response(
+      JSON.stringify({ error: errorMessage }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400 
+      }
+    )
   }
 })
