@@ -3,7 +3,7 @@ import { supabase } from './lib/supabase';
 import { useTranslation } from 'react-i18next'; // Импортируем хук перевода
 import Auth from './components/Auth';
 import Recommendations from './components/Recommendations';
-import AdabHub from './components/AdabHub';
+import { AdabHub } from './components/AdabHub';
 import ChatList from './components/ChatList';
 import ActiveChat from './components/ActiveChat';
 import EditProfile from './components/EditProfile';

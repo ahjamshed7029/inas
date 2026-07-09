@@ -1,0 +1,8 @@
+{
+    "rewrites": [
+        {
+            "source": "/api/generate-content",
+            "destination": "https://fjaxhiohvkabwlcfwxcs.supabase.co/functions/v1/ai-search"
+        }
+    ]
+}
