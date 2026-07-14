@@ -13,15 +13,18 @@ Deno.serve(async (req) => {
   try {
     const { searchQuery, profile, direction, lang } = await req.json()
 
-    // @ts-ignore
-    const agentsApiKey = Deno.env.get('AGENTS_API_KEY')
-    // @ts-ignore
-    const serperKey = Deno.env.get('SERPER_API_KEY')
+   const agentsApiKey = Deno.env.get('AGENTS_API_KEY')
+const serperKey = Deno.env.get('SERPER_API_KEY')
 
-    if (!agentsApiKey || !serperKey) {
-      throw new Error("Missing API keys (AGENTS_API_KEY or SERPER_API_KEY) in Supabase.");
-    }
-
+// Если хотя бы одного ключа нет — возвращаем ошибку
+if (!agentsApiKey || !serperKey) {
+  return new Response(
+    JSON.stringify({ 
+      error: "Ключи Groq (AGENTS_API_KEY) или Serper (SERPER_API_KEY) не найдены в секретах Supabase!" 
+    }),
+    { status: 500, headers: { "Content-Type": "application/json" } }
+  )
+}
     // 1. Поиск текстовой информации через Serper API
     const searchResponse = await fetch('https://google.serper.dev/search', {
       method: 'POST',

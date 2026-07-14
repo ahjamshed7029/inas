@@ -52,6 +52,7 @@ export default function Auth() {
     const [name, setName] = useState('');
     const [gender, setGender] = useState<'male' | 'female'>('male');
     const [age, setAge] = useState('');
+    const [isAgreed, setIsAgreed] = useState(false);
 
     // Динамически получаем выбранный в приложении язык (или ставим 'ru' по умолчанию)
     const currentLang = localStorage.getItem('lang') || 'ru';
@@ -234,14 +235,14 @@ export default function Auth() {
                     {/* Кнопка действия */}
                     <button
                         type="submit"
-                        disabled={loading}
+                        disabled={loading || (isSignUp && !isAgreed)}
                         className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold py-3.5 px-4 rounded-xl text-sm shadow-xl shadow-amber-600/10 active:scale-[0.99] transition disabled:opacity-50 mt-2"
                     >
                         {loading ? 'Сверение с базой...' : (isSignUp ? 'Зажечь очаг' : 'Войти')}
                     </button>
                 </form>
 
-                {/* Переключение Вход / Регистрация */}
+                {/* {/* Переключение Вход / Регистрация */}
                 <div className="text-center mt-6">
                     <button
                         type="button"
@@ -254,7 +255,40 @@ export default function Auth() {
                         {isSignUp ? 'Есть аккаунт? Войти' : 'Нет аккаунта? Создать очаг'}
                     </button>
                 </div>
+
+               {/* БЛОК СОГЛАСИЯ И БЕЗОПАСНОСТИ ПЛАТЕЖЕЙ (Рендерится только при Регистрации) */}
+                {isSignUp && (
+                    <div className="mt-5 pt-4 border-t border-slate-800/60 selection:bg-amber-500/10">
+                        {/* Чекбокс согласия над юридическим текстом */}
+                        <div className="flex items-start gap-3 mb-3 px-1 text-left">
+                            <input 
+                                id="terms-checkbox"
+                                type="checkbox" 
+                                checked={isAgreed} 
+                                onChange={(e) => setIsAgreed(e.target.checked)}
+                                className="w-4 h-4 mt-0.5 accent-amber-500 rounded border-slate-700 bg-slate-800 text-amber-500 focus:ring-amber-500 cursor-pointer"
+                            />
+                            <label htmlFor="terms-checkbox" className="text-[11px] text-slate-400/80 leading-relaxed cursor-pointer select-none">
+                                {t.agreeText}{' '}
+                                <a href="/terms" className="text-amber-400/90 hover:text-amber-300 hover:underline transition font-medium">
+                                    {t.terms}
+                                </a>{' '}
+                                {t.and}{' '}
+                                <a href="/privacy" className="text-amber-400/90 hover:text-amber-300 hover:underline transition font-medium">
+                                    {t.privacy}
+                                </a>
+                            </label>
+                        </div>
+
+                        {/* Финансовая безопасность для платежных систем */}
+                        <div className="p-3 rounded-xl border border-red-500/15 bg-red-500/5 text-[10.5px] text-slate-300 leading-relaxed text-left">
+                            <span className="font-bold text-red-400 block mb-1 text-center">🛡️ Безопасность и контроль платежей</span>
+                            Любые денежные переводы или сборы средств между пользователями категорически запрещены. При попытке мошенничества или вымогательства немедленно отправьте жалобу на почту техподдержки: <span className="text-amber-400 font-medium underline">support@inas-eta.vercel.app</span>
+                        </div>
+                    </div>
+                )}
             </div>
+         
         </div>
     );
 }

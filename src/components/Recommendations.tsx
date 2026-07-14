@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react'; // Убрали React
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { AIPairMatching } from './AIPairMatching'; // Импортируем наш новый чистый компонент
 
 interface Candidate {
     id: string;
     display_name: string;
     about_me: string;
-    religious_practise: string;
-    family_values: string;
-    location: string;
+    religious_practise?: string;
+    family_values?: string;
+    location?: string;
 }
 
 export default function Recommendations({ userId }: { userId: string }) {
@@ -24,7 +25,7 @@ export default function Recommendations({ userId }: { userId: string }) {
 
     // Таймер для 2-минутного видеозвонка
     useEffect(() => {
-        let timer: number; // Вместо NodeJS.Timeout
+        let timer: any;
         if (showVideoCall && countdown > 0) {
             timer = setInterval(() => setCountdown(c => c - 1), 1000);
         } else if (countdown === 0) {
@@ -65,7 +66,6 @@ export default function Recommendations({ userId }: { userId: string }) {
         }
     }
 
-    // Действие: Написать (Откликнуться)
     const handleConnect = async (candidateId: string) => {
         if (!introMessage.trim()) {
             alert("Напишите приветственное сообщение, чтобы человек понял ваши намерения.");
@@ -73,13 +73,12 @@ export default function Recommendations({ userId }: { userId: string }) {
         }
 
         try {
-            // Создаем мэтч со статусом pending и вшиваем первое сообщение
             const { error } = await supabase.from('matches').insert([
                 {
                     sender_id: userId,
                     receiver_id: candidateId,
                     status: 'pending',
-                    notes: introMessage // Сюда сохраняется первое сообщение вместе с анкетой
+                    notes: introMessage
                 }
             ]);
 
@@ -93,7 +92,6 @@ export default function Recommendations({ userId }: { userId: string }) {
         }
     };
 
-    // Действие: Игнорировать
     const handleIgnore = async (candidateId: string) => {
         try {
             await supabase.from('ignored_users').insert([
@@ -109,7 +107,6 @@ export default function Recommendations({ userId }: { userId: string }) {
         setCurrentIndex(prev => prev + 1);
     };
 
-    // Симуляция триггера видеозвонка (в реальном приложении это прилетит через Supabase Realtime)
     const triggerMatchSuccess = () => {
         setCountdown(120);
         setShowVideoCall(true);
@@ -125,15 +122,12 @@ export default function Recommendations({ userId }: { userId: string }) {
                     ПРЯМОЙ ЭФИР: {Math.floor(countdown / 60)}:{(countdown % 60).toString().padStart(2, '0')}
                 </div>
                 <h3 className="text-xl font-bold">Первое знакомство лицом к лицу</h3>
-
-                {/* Окна видеопотоков */}
                 <div className="grid grid-cols-1 gap-3 aspect-video bg-slate-900 rounded-2xl border border-slate-800 flex items-center justify-center text-slate-500">
                     [ Место для WebRTC / Agora видеопотока собеседника ]
                 </div>
                 <div className="w-32 aspect-video bg-slate-800 rounded-xl mx-auto border border-slate-700 flex items-center justify-center text-xs text-slate-500">
                     [ Вы ]
                 </div>
-
                 <p className="text-xs text-slate-400">
                     Время строго ограничено 2 минутами согласно Адабу, чтобы защитить границы сторон. По окончании звонка вы сможете запросить контакты махрама.
                 </p>
@@ -147,8 +141,14 @@ export default function Recommendations({ userId }: { userId: string }) {
         );
     }
 
-    if (currentIndex >= candidates.length) {
-        return <div className="text-center text-slate-400 py-10">Все подходящие кандидаты просмотрены.</div>;
+    // Если анкеты в базе просмотрены или отсутствуют
+    if (candidates.length === 0 || currentIndex >= candidates.length) {
+        return (
+            <div className="w-full space-y-4">
+                {/* Убрали верхний статичный плакат с призывом */}
+                <AIPairMatching userId={userId} />
+            </div>
+        );
     }
 
     const current = candidates[currentIndex];
@@ -214,7 +214,7 @@ export default function Recommendations({ userId }: { userId: string }) {
                 </button>
             </div>
 
-            {/* Кнопка-демо для тестирования видеозвонка (уберем в продакшене) */}
+            {/* Кнопка-демо для тестирования видеозвонка */}
             <div className="text-center pt-2">
                 <button onClick={triggerMatchSuccess} className="text-[10px] text-slate-600 hover:underline">
                     [ Симулировать взаимный клик и запуск видео-связи ]

@@ -105,8 +105,10 @@ export default function App() {
           </div>
         ) : (
           <div className="bg-[#0f172a]/40 border border-slate-800/50 rounded-3xl p-4 backdrop-blur-sm min-h-[55vh] shadow-xl">
+            {/* ВОЗВРАЩАЕМ КАК БЫЛО */}
             {currentTab === 'search' && <Recommendations userId={session.user.id} />}
             {currentTab === 'adab' && <AdabHub />}
+
             {currentTab === 'chats' && (
               <ChatList
                 userId={session.user.id}
@@ -125,13 +127,14 @@ export default function App() {
       <nav className="fixed bottom-4 left-0 right-0 z-40 px-4">
         <div className="max-w-md mx-auto bg-[#0f172a]/90 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-2 shadow-[0_10px_30px_rgba(0,0,0,0.5)] grid grid-cols-4 gap-2">
 
-          {/* Кнопка: Поиск */}
+          {/* Кнопка: Никах */}
           <button
             onClick={() => { setCurrentTab('search'); setActiveChatId(null); }}
-            className={`flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl transition-all duration-300 ${currentTab === 'search'
-              ? 'bg-gradient-to-b from-amber-500/20 to-amber-600/5 border border-amber-500/30 text-amber-400 font-bold scale-[1.02]'
-              : 'text-slate-400 hover:text-slate-200'
-              }`}
+            className={`flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl transition-all duration-300 ${
+              currentTab === 'search'
+                ? 'bg-gradient-to-b from-amber-500/20 to-amber-600/5 border border-amber-500/30 text-amber-400 font-bold scale-[1.02]'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
           >
             <span className="text-xl">🔍</span>
             <span className="text-[12px] truncate max-w-full px-1">{t('search')}</span>
